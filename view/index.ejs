@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SF Movies</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        #map {
+            width: 100%;
+            height: 500px;
+            margin-top: 20px;
+        }
+    </style>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.10.0/mapbox-gl.css' rel='stylesheet' />
+</head>
+<body>
+    <h1>SF Movies Locations</h1>
+    <form id="searchForm">
+        <input type="text" id="search" name="query" placeholder="Search for a movie..." />
+        <input type="submit" value="Search">
+    </form>
+    <ul id="suggestions"></ul>
+    <div id="map"></div>
+
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.10.0/mapbox-gl.js'></script>
+    <script>
+        const mapboxAccessToken = '<%= mapboxAccessToken %>';
+        console.log(mapboxAccessToken);
+        mapboxgl.accessToken = mapboxAccessToken;
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            center: [-122.4194, 37.7749],
+            zoom: 12 
+        });
+
+        const searchForm = document.getElementById('searchForm');
+        const searchInput = document.getElementById('search');
+        const suggestions = document.getElementById('suggestions');
+
+        searchForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const query = searchInput.value;
+            if (query.length > 2) {
+                try {
+                    const response = await fetch(`/movies/search?query=${query}`);
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    const searchResults = await response.json();
+                    suggestions.innerHTML = searchResults.map(title => `<li>${title}</li>`).join('');
+
+                    const locationsResponse = await fetch(`/movies/locations`);
+                    if (!locationsResponse.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    const allLocations = await locationsResponse.json();
+
+                    const filteredLocations = allLocations.filter(movie => searchResults.includes(movie.title));
+
+                    if (map.markers) {
+                        map.markers.forEach(marker => marker.remove());
+                    }
+                    map.markers = [];
+
+                    filteredLocations.forEach(movie => {
+                        if (movie.location) {
+                            const marker = new mapboxgl.Marker()
+                                .setLngLat([movie.location.lng, movie.location.lat])
+                                .setPopup(new mapboxgl.Popup().setHTML(`<h3>${movie.title}</h3>`))
+                                .addTo(map);
+                            map.markers.push(marker);
+                        }
+                    });
+                } catch (error) {
+                    console.error('Failed to fetch:', error);
+                }
+            } else {
+                suggestions.innerHTML = '';
+            }
+        });
+    </script>
+</body>
+</html>
